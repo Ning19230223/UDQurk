@@ -1,27 +1,29 @@
-package net.ximatai.muyun.http;
+package com.bsy;
 
-import io.quarkus.runtime.StartupEvent;
+import io.quarkus.runtime.Startup;
 import io.quarkus.vertx.web.RouteFilter;
-import io.vertx.core.Vertx;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.SessionHandler;
-import io.vertx.ext.web.sstore.LocalSessionStore;
+import io.vertx.ext.web.handler.BodyHandler;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 
+@Startup
 @ApplicationScoped
-public class SessionFilter {
+public class FileFilter {
 
-    private SessionHandler sessionHandler;
+    @Inject
+    @ConfigProperty(name = "file.store.path")
+    String filePath;
 
-    void init(@Observes StartupEvent ev, Vertx vertx) {
-        sessionHandler = SessionHandler.create(LocalSessionStore.create(vertx));
-    }
-
-    @RouteFilter(10)
-    void filter(RoutingContext context) {
-        sessionHandler.handle(context);
+    @RouteFilter(10)  // 该注解中有route
+    void filter(RoutingContext context) { 
+        BodyHandler.create().setUploadsDirectory(filePath).handle(context);
+        // BodyHandler是一个类，对象handler可以作为route的参数
+        // create()函数返回一个BodyHandlerImpl
+        // BodyHandlerImpl中有handle方法
+        // handle方法接收context来处理
     }
 
 }

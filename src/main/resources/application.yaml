@@ -1,0 +1,7 @@
+quarkus:
+  http:
+    port: 9018
+
+file:
+  store:
+    path: "D:\\file-uploads\\"
