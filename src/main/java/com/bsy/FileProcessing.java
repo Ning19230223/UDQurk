@@ -4,22 +4,28 @@ import io.quarkus.vertx.web.Route;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.streams.ReadStream;
 import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.sql.PreparedStatement;
+
 
 public class FileProcessing {
 
     final Logger logger = LoggerFactory.getLogger(getClass());
+    
+    String originalFileName;
 
     @Inject
     @ConfigProperty(name = "quarkus.http.port")
@@ -57,26 +63,26 @@ public class FileProcessing {
         for (FileUpload f : ctx.fileUploads()) {
             // 获取文件名、文件大小、uid
             String uploadedFileName = f.uploadedFileName();
-            String originalFileName = f.fileName();
+            originalFileName = f.fileName();
             long fileSize = f.size();
-            String uid = uploadedFileName.split("\\\\")[2];
+            String uid = "bsy-" + uploadedFileName.split("\\\\")[2];
 
             String fileNameUid = suffixN(uid);
             String fileContextUid = suffixO(uid);
             vertx.fileSystem().writeFile(filePath + fileNameUid, Buffer.buffer(originalFileName));
             vertx.fileSystem().copy(uploadedFileName, filePath + fileContextUid);
             vertx.fileSystem().delete(uploadedFileName);
-
             
-            
-            JsonObject jsonObject = new JsonObject()
-                    .put("fileName", originalFileName)
-                    .put("fileUid", uid)
-                    .put("fileSize", fileSize)
-                    .put("download url", "http://localhost:" + String.valueOf(port) + "/fs/download/" + uid);
-            ctx.response()
-                    .putHeader("Content-Type", "application/json")
-                    .write(jsonObject.toString());
+            // 返回JSON对象
+//            JsonObject jsonObject = new JsonObject()
+//                    .put("fileName", originalFileName)
+//                    .put("fileUid", uid)
+//                    .put("fileSize", fileSize)
+//                    .put("download url", "http://localhost:" + String.valueOf(port) + "/fs/download/" + uid);
+//            ctx.response()
+//                    .putHeader("Content-Type", "application/json")
+//                    .write(jsonObject.toString());
+            ctx.response().write(uid);
         }
         ctx.response().end();
     }
@@ -115,6 +121,77 @@ public class FileProcessing {
         boolean isDelete1 = fileN.delete();
         boolean isDelete2 = fileO.delete();
         ctx.response().end("Successfully deleted.");
+    }
+    
+//    @Route(path = "/fs/info/:uid", methods = Route.HttpMethod.GET)
+//    public void info(RoutingContext ctx) {
+//        String uid = ctx.pathParam("uid");
+//        String fileNamePath = suffixN(filePath + uid);
+//        String fileContentPath = suffixO(filePath + uid);
+//        File file = new File(fileNamePath);
+//        File fileContent = new File(fileContentPath);
+//        ctx.response().setChunked(true);
+//        vertx.fileSystem().readFile(fileNamePath, result -> {
+//            if(result.succeeded()){
+//                Buffer buffer = result.result();
+//                String content = buffer.toString("UTF-8");
+//                
+//                JsonObject jsonOBject = new JsonObject()
+//                        .put("name", content)
+//                        .put("size", fileContent.length())
+//                        .put("uid", uid);
+//                ctx.response()
+//                        .putHeader("Content-Type", "application/json")
+//                        .write(jsonOBject.toString());
+//            } else {
+//                logger.error("Failed to read file name: " + result.cause());
+//                ctx.fail(result.cause());
+//            }
+//        });
+//        
+//        
+//    }
+
+    @Route(path = "/fs/info/:uid", methods = Route.HttpMethod.GET)
+    public void info(RoutingContext ctx) {
+        String uid = ctx.pathParam("uid");
+        String fileNamePath = suffixN(filePath + uid);
+        String fileContentPath = suffixO(filePath + uid);
+        File file = new File(fileNamePath);
+        File fileContent = new File(fileContentPath);
+
+        vertx.fileSystem().readFile(fileNamePath, result -> {
+            if(result.succeeded()){
+                Buffer buffer = result.result();
+                String line = buffer.toString("UTF-8");
+                String suffix = line.split("\\.")[1];
+
+                Path path = Paths.get(fileNamePath);
+                String createTime = "00:00";
+                try{
+                    BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+                    FileTime creationTime = attrs.creationTime();
+                    createTime = creationTime.toString();
+                } catch(IOException e){
+                    logger.error("Failed to read file attributes", e);
+                }
+                
+                JsonObject jsonObject = new JsonObject()
+                        .put("name", line)
+                        .put("size", fileContent.length())
+                        .put("suffix", suffix)
+                        .put("uid", uid)
+                        .put("time", createTime);
+
+                ctx.response()
+                        .putHeader("Content-Type", "application/json")
+                        .end(jsonObject.toString());
+
+            } else {
+                logger.error("Failed to read file name: " + result.cause());
+                ctx.fail(result.cause());
+            }
+        });
     }
     
 

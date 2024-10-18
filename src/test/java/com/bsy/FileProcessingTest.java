@@ -58,10 +58,10 @@ public class FileProcessingTest {
                 .statusCode(200)
                 .extract()
                 .response();
-        String jsonResponse = response.getBody().asString();
-        JsonObject jsonObject = new JsonObject(jsonResponse);
+        // String jsonResponse = response.getBody().asString();
+        // JsonObject jsonObject = new JsonObject(jsonResponse);
        
-        uid = jsonObject.getString("fileUid");
+        String uid = response.getBody().asString();
         
         
         // 下载文件
@@ -77,7 +77,23 @@ public class FileProcessingTest {
         String downloadContent = response2.getBody().asString();
         // 验证文件内容是否相同
         assertEquals(contextF, downloadContent);
-        assertEquals(tempFile.getName(), jsonObject.getString("fileName"));
+        
+        // 文件内容可以再info接口中验证
+        // assertEquals(tempFile.getName(), jsonObject.getString("fileName"));
+        
+        // 读取文件info
+        Response response3 = given()
+                .when()
+                .get("/fs/info/" + uid)
+                .then()
+                .log().all()
+                .statusCode(200)
+                .extract()
+                .response();
+        String jsonResponse = response3.getBody().asString();
+        JsonObject jsonObject = new JsonObject(jsonResponse);
+        String fileName = jsonObject.getString("name");
+        assertEquals(tempFile.getName(), fileName);
     }
 
     @AfterEach
